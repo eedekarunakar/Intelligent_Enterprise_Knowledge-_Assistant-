@@ -43,3 +43,11 @@ class VectorStore:
         )
 
         return self.vector_db
+    
+    def get_retriever(self):
+
+        return self.vector_db.as_retriever(
+            search_kwargs={
+            "k":3
+        }
+        )

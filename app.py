@@ -1,11 +1,16 @@
 import streamlit as st
 from pathlib import Path
+
+from config.settings import APP_NAME, GROQ_API_KEY
+from loaders.document_loader import DocumentLoader
 from rag.chunking_service import ChunkingService
 from rag.embedding_service import EmbeddingService
 from rag.vector_store import VectorStore
+from rag.retriever import RetrieverService
 
-from config.settings import APP_NAME, OPENAI_API_KEY
-from loaders.document_loader import DocumentLoader
+# -------------------------------------------------------
+# Streamlit Configuration
+# -------------------------------------------------------
 
 st.set_page_config(
     page_title=APP_NAME,
@@ -15,42 +20,75 @@ st.set_page_config(
 
 st.title("🤖 Enterprise Knowledge Assistant")
 
-st.write("Welcome to the Enterprise RAG Application.")
+st.markdown("---")
 
-if OPENAI_API_KEY:
-    st.success("OpenAI API Key Loaded Successfully")
+# -------------------------------------------------------
+# API Key Validation
+# -------------------------------------------------------
+
+if GROQ_API_KEY:
+    st.success("✅ Groq API Key Loaded Successfully")
 else:
-    st.error("OpenAI API Key Not Found")
+    st.error("❌ Groq API Key Not Found")
+    st.stop()
+
+# -------------------------------------------------------
+# Load PDF
+# -------------------------------------------------------
 
 pdf_path = Path("data") / "HRPolicy.pdf"
 
-st.write("Current Working Directory:", Path.cwd())
-st.write("PDF Exists:", pdf_path.exists())
-st.write("PDF Path:", pdf_path.resolve())
+st.subheader("Step 1 : Document Loading")
+
+st.write("Current Working Directory")
+
+st.code(str(Path.cwd()))
+
+st.write("PDF Exists :", pdf_path.exists())
+
+if not pdf_path.exists():
+
+    st.error("HRPolicy.pdf not found inside data folder")
+
+    st.stop()
 
 loader = DocumentLoader()
 
-try:
-    documents = loader.load(str(pdf_path))
+documents = loader.load(str(pdf_path))
 
-    st.success("PDF Loaded Successfully")
+st.success(f"Loaded {len(documents)} Document(s)")
+
+# Preview
+
+with st.expander("Document Preview"):
 
     st.write(documents[0].page_content[:1000])
+
     st.write(documents[0].metadata)
 
-except Exception as e:
-    st.error(str(e))
+# -------------------------------------------------------
+# Chunking
+# -------------------------------------------------------
 
+st.subheader("Step 2 : Chunking")
 
 chunk_service = ChunkingService()
 
 chunks = chunk_service.split_documents(documents)
 
-st.success(f"Total Chunks : {len(chunks)}")
+st.success(f"Total Chunks Created : {len(chunks)}")
 
-st.write(chunks[0].page_content)
+with st.expander("Chunk Preview"):
 
-st.write(chunks[0].metadata)
+    st.write(chunks[0].page_content)
+
+    st.write(chunks[0].metadata)
+
+# -------------------------------------------------------
+# Embedding Model
+# -------------------------------------------------------
+
+st.subheader("Step 3 : Embedding Model")
 
 embedding_service = EmbeddingService()
 
@@ -58,8 +96,55 @@ embedding_model = embedding_service.get_embedding_model()
 
 st.success("Embedding Model Loaded Successfully")
 
+vector = embedding_model.embed_query(
+    chunks[0].page_content
+)
+
+st.write("Embedding Dimension :", len(vector))
+
+# -------------------------------------------------------
+# ChromaDB
+# -------------------------------------------------------
+
+st.subheader("Step 4 : Vector Database")
+
 vector_store = VectorStore(embedding_model)
 
 db = vector_store.create_vector_store(chunks)
 
 st.success("Vector Database Created Successfully")
+
+collection = db.get()
+
+st.write(
+    "Stored Documents :",
+    len(collection["documents"])
+)
+
+# -------------------------------------------------------
+# Retriever
+# -------------------------------------------------------
+
+st.subheader("Step 5 : Semantic Search")
+
+retriever = RetrieverService(db)
+
+question = st.text_input(
+    "Ask your question"
+)
+
+if question:
+
+    results = retriever.similarity_search(question)
+
+    st.success(f"{len(results)} Relevant Documents Found")
+
+    for index, doc in enumerate(results):
+
+        st.markdown(f"## Result {index+1}")
+
+        st.write(doc.page_content)
+
+        st.write(doc.metadata)
+
+        st.divider()

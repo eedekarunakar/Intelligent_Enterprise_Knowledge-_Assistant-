@@ -3,7 +3,7 @@ import os
 
 load_dotenv()
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 APP_NAME = "Enterprise Knowledge Assistant"
 
@@ -13,7 +13,7 @@ UPLOAD_FOLDER = "uploads"
 
 DATA_FOLDER = "data"
 
-EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 
 COLLECTION_NAME = "enterprise_documents"
 
