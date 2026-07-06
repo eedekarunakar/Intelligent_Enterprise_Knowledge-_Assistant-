@@ -14,3 +14,6 @@ UPLOAD_FOLDER = "uploads"
 DATA_FOLDER = "data"
 
 EMBEDDING_MODEL = "text-embedding-3-small"
+
+COLLECTION_NAME = "enterprise_documents"
+

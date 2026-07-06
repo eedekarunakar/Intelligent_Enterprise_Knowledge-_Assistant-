@@ -2,6 +2,7 @@ import streamlit as st
 from pathlib import Path
 from rag.chunking_service import ChunkingService
 from rag.embedding_service import EmbeddingService
+from rag.vector_store import VectorStore
 
 from config.settings import APP_NAME, OPENAI_API_KEY
 from loaders.document_loader import DocumentLoader
@@ -56,3 +57,9 @@ embedding_service = EmbeddingService()
 embedding_model = embedding_service.get_embedding_model()
 
 st.success("Embedding Model Loaded Successfully")
+
+vector_store = VectorStore(embedding_model)
+
+db = vector_store.create_vector_store(chunks)
+
+st.success("Vector Database Created Successfully")
