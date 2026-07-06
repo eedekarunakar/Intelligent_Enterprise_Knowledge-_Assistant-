@@ -12,3 +12,5 @@ CHROMA_DB_PATH = "chroma_db"
 UPLOAD_FOLDER = "uploads"
 
 DATA_FOLDER = "data"
+
+EMBEDDING_MODEL = "text-embedding-3-small"

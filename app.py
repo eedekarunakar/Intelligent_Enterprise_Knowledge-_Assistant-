@@ -1,6 +1,7 @@
 import streamlit as st
 from pathlib import Path
 from rag.chunking_service import ChunkingService
+from rag.embedding_service import EmbeddingService
 
 from config.settings import APP_NAME, OPENAI_API_KEY
 from loaders.document_loader import DocumentLoader
@@ -49,3 +50,9 @@ st.success(f"Total Chunks : {len(chunks)}")
 st.write(chunks[0].page_content)
 
 st.write(chunks[0].metadata)
+
+embedding_service = EmbeddingService()
+
+embedding_model = embedding_service.get_embedding_model()
+
+st.success("Embedding Model Loaded Successfully")
