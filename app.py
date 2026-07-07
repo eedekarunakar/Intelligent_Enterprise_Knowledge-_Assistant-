@@ -31,129 +31,156 @@ st.markdown("---")
 # Sidebar
 # -------------------------------------------------------
 
-st.sidebar.title("⚙️ Settings")
-
-st.sidebar.success("Enterprise RAG Application")
+st.sidebar.title("⚙️ Enterprise Settings")
 
 if GROQ_API_KEY:
-    st.sidebar.success("✅ Groq Connected")
+    st.sidebar.success("✅ Groq API Connected")
 else:
-    st.sidebar.error("❌ Groq API Key Missing")
+    st.sidebar.error("❌ GROQ_API_KEY Not Found")
     st.stop()
 
 # -------------------------------------------------------
-# Document Path
+# Upload Section
 # -------------------------------------------------------
 
-pdf_path = Path("data") / "HRPolicy.pdf"
+st.sidebar.header("📂 Upload Documents")
 
-if not pdf_path.exists():
-    st.error("HRPolicy.pdf not found inside data folder.")
-    st.stop()
-
-# -------------------------------------------------------
-# Document Service
-# -------------------------------------------------------
-
-st.header("📄 Document Processing")
-
-document_service = DocumentService()
-
-documents, chunks = document_service.process_document(
-    str(pdf_path)
+uploaded_files = st.sidebar.file_uploader(
+    "Choose Files",
+    type=["pdf", "docx", "txt", "csv", "xlsx"],
+    accept_multiple_files=True
 )
 
-st.success(f"Loaded Documents : {len(documents)}")
-
-st.success(f"Generated Chunks : {len(chunks)}")
-
-with st.expander("Preview Chunk"):
-
-    st.write(chunks[0].page_content)
-
-    st.json(chunks[0].metadata)
+upload_folder = Path("uploads")
+upload_folder.mkdir(exist_ok=True)
 
 # -------------------------------------------------------
-# Vector Service
+# Process Documents
 # -------------------------------------------------------
 
-st.header("🧠 Embedding & Vector Database")
+if st.sidebar.button("🚀 Process Documents"):
 
-vector_service = VectorService()
+    if not uploaded_files:
+        st.sidebar.warning("Please upload at least one document.")
+        st.stop()
 
-embedding_model = vector_service.get_embedding_model()
+    # Clear previous uploaded files
+    for file in upload_folder.iterdir():
+        if file.is_file():
+            file.unlink()
 
-vector = embedding_model.embed_query(
-    chunks[0].page_content
-)
+    # Save uploaded files
+    for uploaded_file in uploaded_files:
 
-st.success("Embedding Model Loaded")
+        file_path = upload_folder / uploaded_file.name
 
-st.write("Embedding Dimension :", len(vector))
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
 
-db = vector_service.build_vector_store(chunks)
+    st.success(f"✅ {len(uploaded_files)} file(s) uploaded.")
 
-st.success("Vector Database Created")
+    # -------------------------------------------------------
+    # Document Processing
+    # -------------------------------------------------------
 
-collection = db.get()
+    with st.spinner("Loading Documents..."):
 
-st.write("Stored Chunks :", len(collection["documents"]))
+        document_service = DocumentService()
+
+        documents, chunks = document_service.process_directory(upload_folder)
+
+    st.success(f"📄 Documents Loaded : {len(documents)}")
+
+    st.success(f"✂ Chunks Created : {len(chunks)}")
+
+    with st.expander("Preview First Chunk"):
+
+        st.write(chunks[0].page_content)
+
+        st.json(chunks[0].metadata)
+
+    # -------------------------------------------------------
+    # Embedding
+    # -------------------------------------------------------
+
+    with st.spinner("Generating Embeddings..."):
+
+        vector_service = VectorService()
+
+        embedding_model = vector_service.get_embedding_model()
+
+        db = vector_service.build_vector_store(chunks)
+
+    st.success("✅ Embedding Model Loaded")
+
+    st.success("✅ Vector Database Created")
+
+    collection = db.get()
+
+    st.write("Stored Chunks :", len(collection["documents"]))
+
+    # -------------------------------------------------------
+    # Create Services
+    # -------------------------------------------------------
+
+    retriever = RetrieverService(db)
+
+    chat_service = ChatService()
+
+    rag_service = RAGService(
+        retriever=retriever,
+        chat_service=chat_service
+    )
+
+    st.session_state["rag"] = rag_service
+
+    st.session_state["retriever"] = retriever
+
+    st.success("🎉 Knowledge Base Ready!")
 
 # -------------------------------------------------------
-# Retriever
+# Chat Section
 # -------------------------------------------------------
 
-retriever = RetrieverService(db)
-
-# -------------------------------------------------------
-# Chat Service
-# -------------------------------------------------------
-
-chat_service = ChatService()
-
-# -------------------------------------------------------
-# RAG Service
-# -------------------------------------------------------
-
-rag_service = RAGService(
-    retriever=retriever,
-    chat_service=chat_service
-)
-
-# -------------------------------------------------------
-# Ask Questions
-# -------------------------------------------------------
+st.markdown("---")
 
 st.header("💬 Ask Questions")
 
-question = st.text_input(
-    "Ask anything about the uploaded document..."
+if "rag" not in st.session_state:
+
+    st.info("Upload documents and click 'Process Documents' first.")
+
+    st.stop()
+
+question = st.chat_input(
+    "Ask anything about your uploaded documents..."
 )
 
 if question:
 
+    with st.chat_message("user"):
+        st.write(question)
+
     with st.spinner("Searching Knowledge Base..."):
 
-        answer, sources = rag_service.ask(question)
+        answer, sources = st.session_state["rag"].ask(question)
 
-        retrieved_docs = retriever.similarity_search(question)
+        docs = st.session_state["retriever"].similarity_search(question)
 
-    st.subheader("🤖 AI Answer")
+    with st.chat_message("assistant"):
 
-    st.success(answer)
+        st.markdown(answer)
 
-    st.subheader("📚 Sources")
+    with st.expander("📚 Sources"):
 
-    for source in sources:
-        st.write(f"📄 {source}")
+        for source in sources:
+            st.write(f"📄 {source}")
 
     with st.expander("Retrieved Chunks"):
 
-        st.success(
-            f"{len(retrieved_docs)} Chunk(s) Retrieved"
-        )
+        st.success(f"{len(docs)} Relevant Chunk(s)")
 
-        for i, doc in enumerate(retrieved_docs):
+        for i, doc in enumerate(docs):
 
             st.markdown(f"### Chunk {i+1}")
 
